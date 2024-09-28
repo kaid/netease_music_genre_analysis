@@ -1,6 +1,6 @@
 import time
 from os import path
-from typing import Any
+from typing import Any, Mapping
 from urllib.parse import urlencode
 from aiohttp import ClientSession, CookieJar
 
@@ -71,6 +71,11 @@ async def get_playlist_tracks(playlist_id: int, offset: int = 0, limit: int = 10
 async def get_artist_detail(artist_id: int) -> dict[str, Any]:
     return await post_from(get_url('/ugc/artist/get'), data={ 'id': artist_id })
 
-ALBUM_SALES = ''
+async def get_artist_misc(artist_id: int) -> dict[str, Any]:
+    return await post_from(get_url('/artists'), data={ 'id': artist_id })
 
-ARTIST_RECORDS = ''
+async def get_artist_albums(artist_id: int, limit: int = 100, offset: int = 0) -> dict[str, Any]:
+    return await post_from(get_url('/artist/album'), data={ 'id': artist_id, 'limit': limit, 'offset': offset })
+
+async def get_album_sales(album_ids: list[int]) -> dict[str, Any]:
+    return await post_from(get_url('/digitalAlbum/sales'), data={ 'ids': ','.join(map(str, album_ids)) })

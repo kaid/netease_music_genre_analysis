@@ -9,55 +9,55 @@ from utils.cache import Cache
 LANGUAGE_CATEGORIES = ['华语']
 GENRE_CATEGORIES = ['摇滚', '朋克', '民谣', '说唱', '电子']
 
-ARTISTS_IDS = {
-    '崔健': 1,
-    '张楚': 1,
-    '何勇': 1,
-    '窦唯': 1,
-    '黑豹乐队': 1,
-    '唐朝乐队': 1,
-    '郑钧': 1,
-    '眼镜蛇乐队': 1,
+ARTISTS_NAME_ID_MAP = {
+    '崔健': 2111,
+    '张楚': 6455,
+    '何勇': 3055,
+    '窦唯': 2515,
+    '黑豹乐队': 11759,
+    '唐朝乐队': 12972,
+    '郑钧': 6458,
+    '眼镜蛇乐队': 13436,
 
-    '老狼': 1,
-    '朴树': 1,
-    '水木年华': 1,
-    '野孩子乐队': 1,
-    '万能青年旅店': 1,
-    '新裤子乐队': 1,
-    '脑浊乐队': 1,
-    '腰乐队': 1,
-    '左小祖咒': 1,
-    '二手玫瑰': 1,
-    '惘闻乐队': 1,
-    '谢天笑': 1,
-    'AK (AK47)': 1,
-    '果味VC': 1,
-    '万晓利': 1,
-    '低苦艾乐队': 1,
-    '周云蓬': 1,
-    '后海大鲨鱼': 1,
-    '左右乐队': 1,
-    '五条人': 1,
+    '老狼': 3682,
+    '朴树': 4721,
+    '水木年华': 12712,
+    '野孩子乐队': 13416,
+    '万能青年旅店': 13223,
+    '新裤子乐队': 13282,
+    '脑浊乐队': 12442,
+    '腰乐队': 13421,
+    '左小祖咒': 6467,
+    '二手玫瑰': 11514,
+    '惘闻乐队': 13188,
+    '谢天笑': 5767,
+    'AK (AK47)': 10996,
+    '果味VC': 11680,
+    '万晓利': 5345,
+    '低苦艾乐队': 11365,
+    '周云蓬': 6461,
+    '后海大鲨鱼': 11760,
+    '左右乐队': 13594,
+    '五条人': 938017,
 
-    '不速之客乐队': 1,
-    '吹万乐队': 1,
-    'Chinese Football': 1,
-    'Nova Heart': 1,
-    '大波浪乐队': 1,
-    '海朋森乐队': 1,
-    '程璧': 1,
-    '达闻西乐队': 1,
-    '马頔': 1,
-    '张尕怂': 1,
-    '陈粒': 1,
-    '谢春花': 1,
-    '马思唯': 1,
-    '超级斩乐队': 1,
-    '福禄寿乐队': 1,
+    '不速之客乐队': 12247,
+    '吹万乐队': 11353,
+    'Chinese Football': 1081839,
+    'Nova Heart': 12494,
+    '大波浪乐队': 918003,
+    '海朋森乐队': 1051015,
+    '程璧': 973004,
+    '达闻西乐队': 12037252,
+    '马頔': 4592,
+    '张尕怂': 985402,
+    '陈粒': 1007170,
+    '谢春花': 1039895,
+    '马思唯': 1132392,
+    '超级斩乐队': 13523466,
+    '福禄寿乐队': 29393033,
 }
 
-__all__ = ['prepare_data']
+__all__ = ['prepare_playlist_data']
 
 type RawTable = dict[str, list[Union[str, int]]]
 
@@ -89,7 +89,7 @@ async def get_all_playlists() -> RawTable:
             if not total and lists['total'] > 0:
                 total = lists['total']
 
-            if not more or total <= offset:
+            if not more or (total is not None and total <= offset):
                 break
 
             for playlist in lists['playlists']:
@@ -214,19 +214,111 @@ def persist_caches():
     ARTISTS_CACHE.save()
     TRACKS_CACHE.save()
 
-async def prepare_data():
+async def prepare_playlist_data():
+    global ALL_PLAYLISTS, ALL_TRACKS, ALL_PLAYLIST_ARTISTS
+
     api.save_cookies()
     ALL_PLAYLISTS = await get_or_load_from_file('../data/all_playlists.pickle', get_all_playlists)
     ALL_TRACKS = await get_or_load_from_file('../data/all_tracks.pickle', get_all_playlist_tracks)
     ALL_PLAYLIST_ARTISTS = await get_or_load_from_file('../data/playlist_artists.pickle', get_all_playlist_artists)
     api.save_cookies()
 
-    PLAYLISTS_DF = pl.DataFrame(ALL_PLAYLISTS)
-    PLAYLISTS_DF.write_parquet('../data/all_playlists.pickle')
-
-    ARTISTS_DF = pl.DataFrame(ALL_PLAYLIST_ARTISTS)
-    ARTISTS_DF.write_parquet('../data/artists_cache.pickle')
-
-    TRACKS_DF = pl.DataFrame(ALL_TRACKS)
-    TRACKS_DF.write_parquet('../data/all_playlists.pickle')
+    pl.DataFrame(ALL_PLAYLISTS).write_parquet('../data/all_playlists.parquet')
+    pl.DataFrame(ALL_PLAYLIST_ARTISTS).write_parquet('../data/playlist_artists.parquet')
+    pl.DataFrame(ALL_TRACKS).write_parquet('../data/all_tracks.parquet')
     # persist_caches()
+
+async def get_specific_artist_misc() -> RawTable:
+    artist_misc: RawTable = {
+        'artist_id': [],
+        'artist_name': [],
+
+        'mv_count': [],
+        'track_count': [],
+        'album_count': [],
+    }
+
+    for artist_id in list(ARTISTS_NAME_ID_MAP.values()):
+        print(f'Getting artist {artist_id} misc')
+        artist_detail = await api.get_artist_misc(artist_id)
+
+        if 'artist' not in artist_detail:
+            continue
+
+        artist_detail = artist_detail['artist']
+
+        artist_misc['artist_id'].append(artist_id)
+        artist_misc['artist_name'].append(artist_detail['name'])
+        artist_misc['mv_count'].append(artist_detail['mvSize'])
+        artist_misc['track_count'].append(artist_detail['musicSize'])
+        artist_misc['album_count'].append(artist_detail['albumSize'])
+
+    return artist_misc
+
+async def get_specific_artist_albums() -> RawTable:
+    artist_albums: RawTable = {
+        'artist_id': [],
+        'album_id': [],
+        'album_name': [],
+    }
+
+    for index, artist_id in enumerate(SPECIFIC_ARTIST_MISC['artist_id']):
+        offset = 0
+        limit = 100
+        total = SPECIFIC_ARTIST_MISC['album_count'][index]
+
+        while True:
+            print(f'Getting artist {artist_id} albums from {offset} to {offset + limit}, total: {total}')
+            albums = await api.get_artist_albums(int(artist_id), limit, offset)
+
+            if 'hotAlbums' not in albums:
+                break
+
+            offset += limit
+
+            for album in albums['hotAlbums']:
+                artist_albums['artist_id'].append(artist_id)
+                artist_albums['album_id'].append(album['id'])
+                artist_albums['album_name'].append(album['name'])
+
+            if offset >= int(total):
+                break
+
+
+    return artist_albums
+    
+async def get_specific_artist_sales() -> RawTable:
+    artist_sales: RawTable = {
+        'album_id': [],
+        'album_sales': [],
+    }
+
+    album_ids = [int(album_id) for album_id in SPECIFIC_ARTIST_ALBUMS['album_id']]
+
+    print(f'Getting artist {album_ids} sales')
+    sales_data = await api.get_album_sales(album_ids)
+
+    if 'data' not in sales_data:
+        return artist_sales
+
+
+    for (album_id, album_sales) in sales_data['data'].items():
+        artist_sales['album_id'].append(int(album_id))
+        artist_sales['album_sales'].append(album_sales)
+
+    return artist_sales
+
+SPECIFIC_ARTIST_MISC: RawTable = {}
+SPECIFIC_ARTIST_ALBUMS: RawTable = {}
+SPECIFIC_ARTIST_SALES: RawTable = {}
+
+async def prepare_specific_artist_data():
+    global SPECIFIC_ARTIST_MISC, SPECIFIC_ARTIST_ALBUMS, SPECIFIC_ARTIST_SALES
+
+    SPECIFIC_ARTIST_MISC = await get_or_load_from_file('../data/specific_artist_misc.pickle', get_specific_artist_misc)
+    SPECIFIC_ARTIST_ALBUMS = await get_or_load_from_file('../data/specific_artist_albums.pickle', get_specific_artist_albums)
+    SPECIFIC_ARTIST_SALES = await get_or_load_from_file('../data/specific_artist_sales.pickle', get_specific_artist_sales)
+
+    pl.DataFrame(SPECIFIC_ARTIST_MISC).write_parquet('../data/specific_artist_misc.parquet')
+    pl.DataFrame(SPECIFIC_ARTIST_ALBUMS).write_parquet('../data/specific_artist_albums.parquet')
+    pl.DataFrame(SPECIFIC_ARTIST_SALES).write_parquet('../data/specific_artist_sales.parquet')

@@ -1,6 +1,6 @@
 import pickle
 from os import path
-
+from typing import Any
 class Cache(dict):
     def __init__(self, file_path: str):
         self.file_path = file_path
@@ -14,7 +14,7 @@ class Cache(dict):
         with open(self.file_path, 'wb') as f:
             pickle.dump(self.store, f)
 
-    def __getitem__(self, key: object) -> object:
+    def __getitem__(self, key: object) -> dict[str, Any]:
         return self.store.get(key)
 
     def __setitem__(self, key: object, value: object | None):
